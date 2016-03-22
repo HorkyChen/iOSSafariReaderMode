@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <base>
+    <title>Reader</title>
+    <style id="article-content">
+        @media print {
+            .original-url {
+                display: none;
+            }
+        }
+
+        h1.title {
+            font-family: Palatino, Georgia, Times, "Times New Roman", serif;
+            font-weight: bold;
+            font-size: 1.33em;
+            line-height: 1.25em;
+            text-align: start;
+            -webkit-hyphens: manual;
+        }
+        
+        h1 {
+            font-size: 1.25em;
+        }
+        
+        h2 {
+            font-size: 1.125em;
+        }
+        
+        h3 {
+            font-size: 1.05em;
+        }
+
+        .page.rtl {
+            direction: rtl;
+        }
+
+        .page a {
+            text-decoration: none;
+            color: rgb(32, 0, 127);
+        }
+        
+        .page a:visited {
+            color: rgb(32, 0, 127);
+        }
+
+        #article img {
+            /* Float images to the left, so that text will nicely flow around them. */
+            float: left;
+            margin-right: 12px;
+            
+            /* Scale down very wide images, but maintain their intrinsic aspect ratio. */
+            max-width: 100%;
+            height: auto;
+        }
+        
+        #article img.reader-image-tiny {
+            /* Don't float very small images -- let them display where they occur in the text. */
+            float: none;
+            margin: 0;
+        }
+        
+        #article img.reader-image-large {
+            float: none;
+            margin: auto;
+            display: block;
+        }
+
+        .float {
+            margin: 8px 0;
+            font-size: 65%;
+            line-height: 1.4;
+            text-align: start;
+            -webkit-hyphens: manual;
+        }
+
+        .float.left {
+            float: left;
+            margin-right: 20px;
+        }
+
+        .float.right {
+            float: right;
+            margin-left: 20px;
+        }
+        
+        .float.full-width {
+            float: none;
+            display: block;
+        }
+        
+        .page {
+            font: 20px Palatino, Georgia, Times, "Times New Roman", serif;
+            line-height: 160%;
+            text-align: justify;
+        }
+    
+        .page:first-of-type .title {
+            display: block;
+        }
+        
+        .page table {
+            font-size: 0.9em;
+            text-align: start;
+            word-wrap: break-word;
+            -webkit-hyphens: manual;
+        }
+
+        .page-number {
+            display: none;
+        }
+    
+        .title {
+            display: none;
+        }    
+    </style>
+    <style id="reader-ui">
+    @media screen {
+        body {
+            margin: 0;
+            padding: 0;
+            -webkit-user-select: none;
+            background-color: white;
+        }
+
+        .cached embed, .cached applet, .cached object {
+            display: none !important;
+        }
+
+        #background {
+            -webkit-transform: translateZ(0);
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: none;
+        }
+        
+        #container {
+            margin-left: -374px;
+            left: 50%;
+            width: 748px;
+            position: absolute;
+            pointer-events: none;
+        }
+        
+        #centered {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        
+        #article {
+            position: absolute;
+            left: 0px;
+            right: 0px;
+            z-index: 0;
+            outline: none;
+            pointer-events: auto;
+            -webkit-user-select: auto;
+            background-color:rgba(0, 0, 0, 0.8);
+        }
+        
+        .page:only-of-type .page-number {
+            display: none;
+        }
+        
+        .page-number {
+            display: block;
+            font: bold 11px Helvetica, sans-serif;
+            margin-left: 12px;
+            color: #B2B2B2;
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            -webkit-user-select: none;
+        }
+
+        .page:first-of-type {
+            margin-top: 0px;
+        }
+
+        .page:last-of-type {
+            margin-bottom: 0px;
+        }
+        
+        .page:only-of-type {
+            margin-bottom: 0px;
+        }
+
+        .page {
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 10px;
+            padding: 45px 60px;
+            color: black;
+            position: relative;
+            overflow: hidden;
+            background-color: white;
+        }
+
+        .page video {
+            position: relative;
+        }
+
+        #incoming-page-placeholder {
+            height: 30px;
+            margin-bottom: 0;
+        }
+        
+        #incoming-page-corner {
+            position: absolute;
+            right: 10px;
+            top: 8px;
+        }
+        
+        #incoming-page-spinner {
+            width: 20px;
+            height: 20px;
+            float: right;
+            background: url(./ReaderSpinner.png);
+        }
+
+        #incoming-page-text {
+            float: right;
+            margin-top: 2px;
+            margin-left: 8px;
+            color: #B2B2B2;
+            font: bold 11px Helvetica, sans-serif;
+            -webkit-user-select: none;
+        }
+                        
+        #next-page-container {
+            position:absolute;
+            /* Workaround for <rdar://problem/8662842> iOS Reader: loading multiple pages stops at the 2nd page. */
+            /*display: none;*/
+            left: -1000px;
+            /* The iframe needs to be wider than the width threshold value for Reader detection, see <rdar://problem/9599297>. */
+            width: 320px;
+            height: 0px;
+        }
+        
+        .no-transition {
+            -webkit-transition: none !important;
+        }
+
+        .page div.reader-scrollable-div {
+            overflow: scroll;
+        }
+
+        /* These keyframes try to reproduce the 12 discrete steps seen in a standard system progress indicator. */
+        @-webkit-keyframes discreteSpinner {
+            0% {
+                -webkit-transform: rotate(0deg);
+            }
+            8.332% {
+                -webkit-transform: rotate(0deg);
+            }
+            8.333% {
+                -webkit-transform: rotate(30deg);
+            }
+            16.665% {
+                -webkit-transform: rotate(30deg);
+            }
+            16.666% {
+                -webkit-transform: rotate(60deg);
+            }
+            24.999% {
+                -webkit-transform: rotate(60deg);
+            }
+            25.000% {
+                -webkit-transform: rotate(90deg);
+            }
+            33.332% {
+                -webkit-transform: rotate(90deg);
+            }
+            33.333% {
+                -webkit-transform: rotate(120deg);
+            }
+            41.665% {
+                -webkit-transform: rotate(120deg);
+            }
+            41.666% {
+                -webkit-transform: rotate(150deg);
+            }
+            49.999% {
+                -webkit-transform: rotate(150deg);
+            }
+            50.000% {
+                -webkit-transform: rotate(180deg);
+            }
+            58.332% {
+                -webkit-transform: rotate(180deg);
+            }
+            58.333% {
+                -webkit-transform: rotate(210deg);
+            }
+            66.665% {
+                -webkit-transform: rotate(210deg);
+            }
+            66.666% {
+                -webkit-transform: rotate(240deg);
+            }
+            74.999% {
+                -webkit-transform: rotate(240deg);
+            }
+            75.000% {
+                -webkit-transform: rotate(270deg);
+            }
+            83.332% {
+                -webkit-transform: rotate(270deg);
+            }
+            83.333% {
+                -webkit-transform: rotate(300deg);
+            }
+            91.665% {
+                -webkit-transform: rotate(300deg);
+            }
+            91.666% {
+                -webkit-transform: rotate(330deg);
+            }
+            100% {
+                -webkit-transform: rotate(330deg);
+            }
+        }
+        
+        .animation-discrete-spinner {
+            -webkit-animation-name: discreteSpinner;
+            -webkit-animation-duration: 1s;
+            -webkit-animation-iteration-count: infinite;
+            -webkit-animation-timing-function: linear;
+        }
+    }
+
+    @media screen and (-webkit-device-pixel-ratio:2) {
+        body, .page {
+            background-image:url(./PaperTexture@2x.png);
+            -webkit-background-size: 128px auto; /* Texture is currently 256x256, keep in sync if (when) the art changes. */
+        }
+        #incoming-page-spinner {
+            background:url(./ReaderSpinner@2x.png);
+            -webkit-background-size:20px 20px;
+        }
+    }
+    </style>
+
+    <script>
+        // Load localized strings from main bundle.
+        var loadLocalizedStrings = function(controller) {
+            var localizedStringsURL;
+            if (controller.localizedStringsURL)
+                localizedStringsURL = controller.localizedStringsURL;
+            if (!localizedStringsURL)
+                localizedStringsURL = "English.lproj/localizedStrings.js";
+            
+            document.write("<script type='text/javascript' charset='utf-8' src='" + localizedStringsURL + "'></" + "script>");
+        }
+
+        ReaderJSController._isIPad = true;
+        loadLocalizedStrings(ReaderJSController);
+    </script>
+
+</head>
+<body class="preloading" onload="ReaderJS.loaded();" onscroll="articleHasScrolled();">
+    <div id="background"></div>
+    <iframe id="next-page-container"></iframe>
+    <div id="container">
+        <div id="resize-indicator"></div>
+        <div id="centered">
+            <div id="drop-shadow"></div>
+            <div id="article" tabindex="0">
+                <!-- This node will contain a number of 'page' class divs. -->
+            </div>
+        </div>
+    </div>
+</body>
+</html>
